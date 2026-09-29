@@ -1,0 +1,61 @@
+schema_version: "plainpm/v1"
+kind: workflow
+
+statuses:
+  # --- Human statuses ---
+  - id: backlog
+    name: "Backlog"
+    category: unstarted
+    color: "#718096"
+  - id: todo
+    name: "To Do"
+    category: unstarted
+    color: "#4A5568"
+  - id: in_progress
+    name: "In Progress"
+    category: active
+    color: "#3182CE"
+  - id: review
+    name: "In Review"
+    category: active
+    color: "#D69E2E"
+  - id: done
+    name: "Done"
+    category: completed
+    color: "#38A169"
+  - id: cancelled
+    name: "Cancelled"
+    category: discarded
+    color: "#E53E3E"
+
+  # --- Agent statuses ---
+  - id: ready_for_agent
+    name: "Ready for Agent"
+    category: unstarted
+    color: "#8B5CF6"
+    description: "Fully specified, all blockers resolved — an agent can pick this up."
+  - id: agent_in_progress
+    name: "Agent In Progress"
+    category: active
+    color: "#6D28D9"
+    description: "An agent has claimed this issue and is actively implementing."
+  - id: agent_review
+    name: "Agent Review"
+    category: active
+    color: "#A78BFA"
+    description: "Agent believes work is complete — awaiting human verification."
+
+transitions:
+  backlog: [todo, cancelled]
+  todo: [in_progress, ready_for_agent, cancelled, backlog]
+  in_progress: [review, todo, cancelled]
+  review: [done, in_progress, cancelled]
+  done: [todo]
+  cancelled: [todo]
+  # Agent lifecycle transitions
+  ready_for_agent: [agent_in_progress, todo, cancelled]
+  agent_in_progress: [agent_review, ready_for_agent, cancelled]
+  agent_review: [done, agent_in_progress, ready_for_agent, in_progress]
+
+initial_status: todo
+terminal_statuses: [done, cancelled]

@@ -1,0 +1,98 @@
+schema_version: "plainpm/v1"
+kind: issue
+
+id: "PRD-1-001"
+title: "Create registration form component with client-side validation"
+status: agent_in_progress
+type: task
+priority: high
+rank: "0|aaaaaa"
+
+branch: "feat/PRD-1-001-registration-form"
+
+parent:
+  prd: "PRD-1"
+
+assignee: "agent:antigravity"
+reporter: "dan"
+
+labels:
+  - frontend
+  - onboarding
+  - ready-for-agent
+
+dates:
+  created_at: "2026-09-27T20:00:00Z"
+  updated_at: "2026-09-27T21:15:00Z"
+
+links:
+  blocked_by: []
+  blocks:
+    - "PRD-1-002"
+  relates_to: []
+
+implementation_notes:
+  modules:
+    - "packages/app/src/components/registration"
+    - "packages/core/src/validation"
+  patterns:
+    - "Follow existing React hook pattern in packages/app/src/hooks/useAuth"
+    - "Use Zod schemas co-located with the component for validation"
+  seams:
+    - "Test through the RegistrationForm component's public props and submit callback"
+  prior_art:
+    - "See packages/app/src/components/login/LoginForm.tsx for similar form pattern"
+
+test_strategy:
+  approach: integration
+  seams:
+    - "RegistrationForm component mount and submit"
+    - "Validation schema unit tests"
+  verify_command: "pnpm test --filter app -- --grep 'registration'"
+  prior_art:
+    - "See packages/app/src/components/login/__tests__/LoginForm.spec.tsx"
+
+acceptance_criteria:
+  - text: "Client-side schema validation using Zod"
+    done: true
+    verify: "pnpm test --filter app -- --grep 'registration validation'"
+  - text: "Debounced inline field error feedback"
+    done: true
+    verify: "pnpm test --filter app -- --grep 'field error'"
+  - text: "Loading state on submit button during network request"
+    done: false
+    verify: "pnpm test --filter app -- --grep 'submit loading'"
+  - text: "Accessible ARIA live regions for screen readers"
+    done: false
+    verify: manual
+
+agent_context:
+  last_agent: "antigravity"
+  last_session: "da06b01a"
+  files_modified:
+    - "packages/app/src/components/registration/RegistrationForm.tsx"
+    - "packages/app/src/components/registration/RegistrationForm.spec.tsx"
+    - "packages/app/src/components/registration/schema.ts"
+  decisions:
+    - "Used React Hook Form instead of custom controlled inputs — better a11y defaults"
+    - "Skipped password strength meter — deferring to PRD-1-004"
+  failing_tests: []
+  notes: "Form renders and validates. Need to wire up submit handler loading state and ARIA regions."
+
+description: |-
+  Build a responsive registration form component using React + Tailwind CSS with fields:
+  - Full Name (required, min 2 chars)
+  - Work Email (required, valid RFC 5322 email)
+  - Password (required, min 10 chars, uppercase + symbol)
+
+# <!-- append below -->
+comments:
+  - author: "dan"
+    created_at: "2026-09-27T20:30:00Z"
+    body: |-
+      Please verify that autofocus is placed on the Full Name input field on mount.
+  - author: "agent:antigravity"
+    created_at: "2026-09-27T21:15:00Z"
+    body: |-
+      Form scaffolded with React Hook Form + Zod. Validation passing.
+      Autofocus on Full Name confirmed via spec.
