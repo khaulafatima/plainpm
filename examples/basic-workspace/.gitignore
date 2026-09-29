@@ -1,0 +1,13 @@
+# PlainPM local state (disposable cache)
+.plainpm/
+
+# Secrets
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/

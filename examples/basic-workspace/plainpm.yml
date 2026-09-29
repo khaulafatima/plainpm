@@ -1,0 +1,20 @@
+schema_version: "plainpm/v1"
+kind: project
+
+info:
+  name: "Acme Web Platform"
+  key: "ACME"
+  description: "Reference project for PlainPM showcasing Git-friendly YAML workflows."
+
+settings:
+  id_padding: 3
+  id_style: prd-scoped
+  default_issue_type: task
+  default_priority: medium
+  default_status: todo
+
+paths:
+  config: "config"
+  prds: "prds"
+  backlog: "backlog"
+  handoffs: "handoffs"

@@ -1,0 +1,47 @@
+{
+  "name": "plainpm",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "md file and project management",
+  "author": "haha:)",
+  "license": "MIT",
+  "homepage": "https://github.com/khaulafatima/plainpm#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khaulafatima/plainpm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khaulafatima/plainpm/issues"
+  },
+  "keywords": [
+    "project",
+    "management",
+    "md"
+  ],
+  "main": "dist/index.js",
+  "bin": {
+    "plainpm": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "dependencies": {
+    "yargs": "^18.2.0"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.5.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.3",
+    "@types/yargs": "^17.0.35",
+    "eslint": "^10.11.0",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3"
+  }
+}

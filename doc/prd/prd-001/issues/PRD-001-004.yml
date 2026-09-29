@@ -1,0 +1,71 @@
+schema_version: "plainpm/v1"
+kind: issue
+
+id: "PRD-001-004"
+title: "Yargs CLI Command Router & Base End-to-End Tests"
+status: done
+type: task
+priority: high
+rank: "0|daaaaa"
+
+branch: "feat/PRD-001-004-yargs-router"
+
+parent:
+  prd: "PRD-001"
+
+labels:
+  - cli
+  - testing
+  - ready-for-agent
+
+dates:
+  created_at: "2026-09-28T23:00:00Z"
+  updated_at: "2026-09-28T23:11:00Z"
+
+links:
+  blocked_by:
+    - "PRD-001-002"
+    - "PRD-001-003"
+  blocks: []
+  relates_to: []
+
+test_strategy:
+  approach: integration
+  verify_command: "npm test && npm run build && node dist/cli.js --help"
+
+acceptance_criteria:
+  - text: "yargs command dispatcher configured with help and version flags"
+    done: true
+    verify: "npm run build && node dist/cli.js --help"
+  - text: "CLI exits with 0 and prints usage information on --help"
+    done: true
+    verify: "node dist/cli.js --help"
+  - text: "CLI exits with 0 and prints correct version on --version"
+    done: true
+    verify: "node dist/cli.js --version"
+  - text: "Automated Jest integration test invokes CLI command handler and verifies output and exit code"
+    done: true
+    verify: "npm test"
+
+description: |-
+  ## Parent
+
+  PRD-001 ([prd-cli-setup.md](../prd-cli-setup.md))
+
+  ## What to build
+
+  Integrate Yargs as the CLI routing engine and wire end-to-end integration tests.
+
+  Configure Yargs to parse command-line arguments, configure script name as `plainpm`, handle unknown commands gracefully, provide descriptive `--help`, and report package `--version`. Construct integration tests under Jest that exercise the command dispatcher (both programmatically and via CLI process execution) to verify external CLI behavior.
+
+  ## Acceptance criteria
+
+  - [x] `yargs` installed and integrated into `src/cli.ts`.
+  - [x] Running `plainpm --help` displays command usage, options, and descriptions.
+  - [x] Running `plainpm --version` prints current version from `package.json`.
+  - [x] End-to-end tests in Jest verify `--help` and CLI dispatch behavior cleanly.
+
+  ## Blocked by
+
+  - PRD-001-002
+  - PRD-001-003
