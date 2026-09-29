@@ -1,0 +1,68 @@
+schema_version: "plainpm/v1"
+kind: issue
+
+id: "PRD-001-005"
+title: "Restructure CLI code into src/packages/plainpm-cli"
+status: done
+type: task
+priority: high
+rank: "0|eaaaaa"
+
+branch: "feat/PRD-001-005-modular-packages-structure"
+
+parent:
+  prd: "PRD-001"
+
+labels:
+  - refactor
+  - cli
+  - ready-for-agent
+
+dates:
+  created_at: "2026-09-28T23:22:00Z"
+  updated_at: "2026-09-28T23:26:00Z"
+
+links:
+  blocked_by:
+    - "PRD-001-004"
+  blocks: []
+  relates_to: []
+
+test_strategy:
+  approach: integration
+  verify_command: "npm run lint && npm run typecheck && npm run build && npm test"
+
+acceptance_criteria:
+  - text: "CLI implementation files reside under src/packages/plainpm-cli/"
+    done: true
+    verify: "test -f src/packages/plainpm-cli/cli.ts || test -f src/packages/plainpm-cli/index.ts"
+  - text: "tsup bundles from the new package location without error"
+    done: true
+    verify: "npm run build"
+  - text: "CLI binary dist/cli.js executes with --help and --version"
+    done: true
+    verify: "node dist/cli.js --help && node dist/cli.js --version"
+  - text: "Full test and lint suite passes cleanly"
+    done: true
+    verify: "npm run lint && npm run typecheck && npm test"
+
+description: |-
+  ## Parent
+
+  PRD-001 ([prd-cli-setup.md](../prd-cli-setup.md))
+
+  ## What to build
+
+  Reorganize the project code layout so that CLI logic lives in `src/packages/plainpm-cli/`.
+
+  Create `src/packages/plainpm-cli/`, move CLI routing and runner definitions (`cli.ts` / `index.ts`), update `src/index.ts` to re-export CLI module interfaces, update `tsup.config.ts` entry points, and ensure tests and build output remain fully functional and passing.
+
+  ## Acceptance criteria
+
+  - [x] CLI source code moved to `src/packages/plainpm-cli/`.
+  - [x] `tsup.config.ts` entry point mapped to the new path.
+  - [x] `npm run build`, `npm run lint`, and `npm test` execute cleanly with exit code 0.
+
+  ## Blocked by
+
+  - PRD-001-004

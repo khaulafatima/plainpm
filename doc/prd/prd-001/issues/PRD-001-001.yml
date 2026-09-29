@@ -1,0 +1,69 @@
+schema_version: "plainpm/v1"
+kind: issue
+
+id: "PRD-001-001"
+title: "Project Core & Linting Pipeline (ESM + TypeScript + @antfu/eslint-config)"
+status: done
+type: task
+priority: high
+rank: "0|aaaaaa"
+
+branch: "feat/PRD-001-001-core-and-lint"
+
+parent:
+  prd: "PRD-001"
+
+labels:
+  - setup
+  - ready-for-agent
+
+dates:
+  created_at: "2026-09-28T23:00:00Z"
+  updated_at: "2026-09-28T23:05:00Z"
+
+links:
+  blocked_by: []
+  blocks:
+    - "PRD-001-002"
+    - "PRD-001-003"
+  relates_to: []
+
+test_strategy:
+  approach: automated
+  verify_command: "npm run lint && npm run typecheck"
+
+acceptance_criteria:
+  - text: "package.json defines type: module and required project metadata"
+    done: true
+    verify: "node -e 'const pkg = JSON.parse(require(\"fs\").readFileSync(\"package.json\",\"utf-8\")); if(pkg.type !== \"module\") process.exit(1);'"
+  - text: "TypeScript tsconfig.json configures ESNext/NodeNext module resolution with strict checks"
+    done: true
+    verify: "npm run typecheck"
+  - text: "@antfu/eslint-config flat configuration is established and validates cleanly"
+    done: true
+    verify: "npm run lint"
+  - text: "npm scripts lint, lint:fix, and typecheck execute cleanly without errors"
+    done: true
+    verify: "npm run lint && npm run typecheck"
+
+description: |-
+  ## Parent
+
+  PRD-001 ([prd-cli-setup.md](../prd-cli-setup.md))
+
+  ## What to build
+
+  Establish the core repository TypeScript and modern linting pipeline for PlainPM using Node.js LTS and ES Modules.
+
+  Configure the project root with pure ESM (`"type": "module"`), strict TypeScript compiler options (`tsconfig.json` targeting `NodeNext`), and modern automated code formatting and linting via `@antfu/eslint-config`. Provide standard npm scripts (`lint`, `lint:fix`, `typecheck`) and a minimal TypeScript source file to prove the pipeline passes end-to-end.
+
+  ## Acceptance criteria
+
+  - [x] `package.json` updated with `"type": "module"` and appropriate scripts.
+  - [x] `tsconfig.json` configured for strict TypeScript compilation with NodeNext module resolution.
+  - [x] `@antfu/eslint-config` installed and configured in flat config (`eslint.config.js`).
+  - [x] `npm run lint` and `npm run typecheck` run cleanly.
+
+  ## Blocked by
+
+  None - can start immediately.

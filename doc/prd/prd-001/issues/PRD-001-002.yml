@@ -1,0 +1,65 @@
+schema_version: "plainpm/v1"
+kind: issue
+
+id: "PRD-001-002"
+title: "Jest Test Harness with ESM & ts-jest"
+status: done
+type: task
+priority: high
+rank: "0|baaaaa"
+
+branch: "feat/PRD-001-002-jest-setup"
+
+parent:
+  prd: "PRD-001"
+
+labels:
+  - testing
+  - ready-for-agent
+
+dates:
+  created_at: "2026-09-28T23:00:00Z"
+  updated_at: "2026-09-28T23:06:00Z"
+
+links:
+  blocked_by:
+    - "PRD-001-001"
+  blocks:
+    - "PRD-001-004"
+  relates_to: []
+
+test_strategy:
+  approach: automated
+  verify_command: "npm test"
+
+acceptance_criteria:
+  - text: "Jest configured with ts-jest default ESM preset"
+    done: true
+    verify: "npm test"
+  - text: "Unit test executing a TypeScript ES module passes cleanly"
+    done: true
+    verify: "npm test"
+  - text: "npm test script correctly exits with code 0"
+    done: true
+    verify: "npm test"
+
+description: |-
+  ## Parent
+
+  PRD-001 ([prd-cli-setup.md](../prd-cli-setup.md))
+
+  ## What to build
+
+  Configure Jest test runner with TypeScript and ES Module support (`ts-jest/presets/default-esm`).
+
+  The test runner must natively execute TypeScript tests written against ESM source files without requiring pre-compilation steps. Set up `jest.config.ts` (or `jest.config.js`), ensure Node experimental VM modules or proper ts-jest ESM transformers are wired into `npm test`, and provide a passing sanity test verifying that module imports and Jest assertions execute properly.
+
+  ## Acceptance criteria
+
+  - [x] Jest, `ts-jest`, and `@types/jest` installed and configured.
+  - [x] Support for ESM `.ts` file imports in tests without module resolution errors.
+  - [x] `npm test` runs and passes.
+
+  ## Blocked by
+
+  - PRD-001-001

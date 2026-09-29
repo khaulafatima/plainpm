@@ -1,0 +1,67 @@
+schema_version: "plainpm/v1"
+kind: issue
+
+id: "PRD-001-003"
+title: "CLI Bundler with tsup & Binary Shebang Execution"
+status: done
+type: task
+priority: high
+rank: "0|caaaaa"
+
+branch: "feat/PRD-001-003-tsup-bundler"
+
+parent:
+  prd: "PRD-001"
+
+labels:
+  - build
+  - cli
+  - ready-for-agent
+
+dates:
+  created_at: "2026-09-28T23:00:00Z"
+  updated_at: "2026-09-28T23:09:00Z"
+
+links:
+  blocked_by:
+    - "PRD-001-001"
+  blocks:
+    - "PRD-001-004"
+  relates_to: []
+
+test_strategy:
+  approach: automated
+  verify_command: "npm run build && node dist/cli.js"
+
+acceptance_criteria:
+  - text: "tsup bundles TypeScript CLI source to dist/ with shebang support"
+    done: true
+    verify: "npm run build"
+  - text: "package.json bin field maps plainpm to dist/cli.js"
+    done: true
+    verify: 'node -e ''const pkg = JSON.parse(require("fs").readFileSync("package.json","utf-8")); if(!pkg.bin || !pkg.bin.plainpm) process.exit(1);'''
+  - text: "Built distribution file is directly executable by Node.js"
+    done: true
+    verify: "node dist/cli.js"
+
+description: |-
+  ## Parent
+
+  PRD-001 ([prd-cli-setup.md](../prd-cli-setup.md))
+
+  ## What to build
+
+  Configure `tsup` to bundle the TypeScript CLI tool into executable standalone distribution files.
+
+  Set up `tsup.config.ts` targeting Node.js, compiling `src/cli.ts` into `dist/cli.js` with shebang (`#!/usr/bin/env node`) preserved and ESM output. Configure package binary definition (`"bin": { "plainpm": "dist/cli.js" }`) and provide `npm run build` and `npm run dev` development scripts. Verify that running `npm run build` produces a valid executable file in `dist/`.
+
+  ## Acceptance criteria
+
+  - [x] `tsup` configured for ESM output, bundling `src/cli.ts` to `dist/cli.js`.
+  - [x] Shebang line preserved on built binary.
+  - [x] `bin` entry added to `package.json`.
+  - [x] `npm run build` and direct execution of `dist/cli.js` succeed.
+
+  ## Blocked by
+
+  - PRD-001-001
