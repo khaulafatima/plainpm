@@ -11,10 +11,6 @@ labels:
   - id: auth
     name: "Authentication"
     color: "#DC2626"
-  - id: ready-for-agent
-    name: "Ready for Agent"
-    color: "#059669"
-    description: "Issue is fully specified and can be picked up by an AI agent."
   - id: onboarding
     name: "Onboarding"
     color: "#D97706"

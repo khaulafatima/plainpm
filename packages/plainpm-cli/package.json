@@ -1,0 +1,41 @@
+{
+  "name": "plainpm",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "md file and project management",
+  "author": "haha:)",
+  "license": "MIT",
+  "homepage": "https://github.com/khaulafatima/plainpm#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khaulafatima/plainpm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khaulafatima/plainpm/issues"
+  },
+  "keywords": [
+    "project",
+    "management",
+    "md"
+  ],
+  "bin": {
+    "plainpm": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build",
+    "pretest": "npm run build",
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js"
+  },
+  "dependencies": {
+    "yargs": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/yargs": "^17.0.35"
+  }
+}

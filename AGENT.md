@@ -1,181 +1,135 @@
 # AGENT.md — PlainPM
 
-Guidance for AI coding agents (and humans) working in this repository.
+Guidance for AI coding agents and humans working in this repository.
 
-## What this project is
+## Project and implementation status
 
-**PlainPM** is project management in plain text, versioned with Git. It tracks **PRDs**, **issues**, and **handoffs** as plain files in a Git repo. There is no server and no database of record.
+PlainPM is Markdown-based project management, versioned with Git. Issues, PRDs, and handoffs are Markdown files with YAML frontmatter; configuration is YAML.
 
-Core principle, never violate it:
+> Files are the source of truth. Everything else is a disposable, rebuildable derivative.
 
-> **Files are the source of truth. Everything else (index, UI, automation) is a disposable, rebuildable derivative.**
+The authoritative draft contract is [docs/format-spec.md](docs/format-spec.md), with a structured companion at [docs/format-spec.v1.yaml](docs/format-spec.v1.yaml). Keep both synchronized; the YAML companion is not an executable JSON Schema. The repository currently contains a CLI scaffold, not a completed format implementation. Commands and packages described below are targets unless present in source. The draft has changed from YAML issues to Markdown issues; do not silently support both.
 
-See [`docs/format-spec.md`](file:///Users/abuzarhamza/Desktop/workspaceGithub/plainpm/docs/format-spec.md) for the complete format specification and schema definitions.
+## Stack
 
-## Tech stack (assumed — update if it changes)
+- Current: TypeScript on Node.js, npm, yargs, tsup, Jest, ESLint.
+- Planned: JSON Schema draft 2020-12 with Ajv; a YAML parser supporting concrete-syntax preservation; optional SQLite (`better-sqlite3`) and Chokidar after file-based operations work.
+- CLI: `plainpm`; `ppm` is a proposed alias, not currently installed.
+- Keep dependencies minimal and justify additions.
 
-- Language: TypeScript on Node.js (LTS)
-- Package manager: npm
-- Schemas: JSON Schema (draft 2020-12), validated with Ajv
-- Local index: SQLite (`better-sqlite3`), stored in `.plainpm/index.sqlite`, always gitignored
-- File watcher: Chokidar (rebuilds/updates SQLite index on file change)
-- Tests: Vitest
-- CLI binary: `plainpm` (alias `ppm`)
+## Repository organization
 
-## Repository layout
+The repository uses npm workspaces under `packages/`. The `plainpm` npm package lives in `packages/plainpm-cli/`, with CLI source in `src/`, tests in `tests/`, and generated output in `dist/` within that package. It provides the `plainpm` command, with no public JavaScript API. Package-local build and test configuration extends shared root tooling where applicable. The contract is in `docs/`, and reference workspaces in `examples/`. Skills live in `skills/`. Historical plans under `doc/` are not current-format fixtures.
 
-```
-plainpm/
-├── packages/
-│   ├── core/          # parsing, serializing, ID allocation, schema types
-│   ├── validator/     # schema, workflow, referential-integrity, uniqueness checks
-│   ├── indexer/       # builds/updates the SQLite cache from files
-│   ├── cli/           # `plainpm` commands
-│   └── viewer/        # optional read-only web/TUI (added last)
-├── schemas/           # versioned JSON Schemas (source of truth for the format)
-├── examples/          # sample workspaces used in tests and docs
-│   └── basic-workspace/
-├── docs/              # format spec and architecture docs
-│   └── format-spec.md
-├── skills/            # agent skills (to-prd, to-issues, ralph, tdd, hand-off, etc.)
-└── AGENT.md
-```
+As implementation grows, isolate core parsing/serialization, validation, filesystem adapters, CLI, and optional indexing/viewer modules. Do not describe unimplemented packages or schemas as existing features.
 
-## The workspace format (what PlainPM reads and writes)
+## Workspace layout
 
-```
+```text
 <workspace>/
-├── .gitignore                   # ignores .plainpm/ and .env*
-├── .env                         # local secrets (never committed)
-├── plainpm.yml                  # root manifest (project key, defaults, schema_version)
+├── plainpm.yml
 ├── config/
-│   ├── workflow.yml             # allowed statuses (human + agent) & legal transitions
-│   └── labels.yml               # project label vocabulary & colors
+│   ├── workflow.yml
+│   └── labels.yml
 ├── prds/
-│   └── PRD-1-signup-flow/
-│       ├── prd.md               # YAML frontmatter (with execution_order) + Markdown prose
+│   └── <mutable-slug>/
+│       ├── prd.md
 │       ├── issues/
-│       │   └── PRD-1-001.yml    # one issue = one file (agent-ready fields + Markdown body)
-│       ├── .next-id             # per-PRD ID counter (committed to prevent collisions)
+│       │   └── <project-key>-<random-token>.md
 │       └── attachments/
 ├── backlog/
-│   ├── issues/                  # issues not attached to any PRD (ACME-001.yml)
-│   └── .next-id                 # backlog ID counter
-├── handoffs/                    # session handoff documents (HANDOFF-<timestamp>.md)
-└── .plainpm/                    # gitignored: disposable SQLite index cache
+│   └── issues/
+├── handoffs/
+│   └── HANDOFF-<random-token>.md
+└── .plainpm/                   # gitignored cache and transient locks
 ```
 
-(Epics may be added as a grouping level above PRDs: `epics/<epic>/prds/<prd>/issues/`.)
+Ignore `.plainpm/` and `.env*`. Discover only managed paths listed in the format spec, not every Markdown/YAML file in the repository. Nested workspaces are separate. Epics are outside v1.
 
-## Non-negotiable design rules
+## Non-negotiable format rules
 
-1. **One entity per file.** Never bundle multiple issues, PRDs, or handoffs into one file.
-2. **Folders mirror hierarchy.** Moving an issue between PRDs is a `git mv`.
-3. **IDs live in frontmatter / file keys, not in paths.** The `id` field is the authoritative identifier; file location is a navigational convenience. Cross-references use `id` values.
-4. **Canonical ID conventions:**
-   - PRD-scoped issues: `<PRD-id>-<zero-padded-seq>` (e.g., `PRD-1-001`).
-   - Backlog issues: `<project-key>-<zero-padded-seq>` (e.g., `ACME-001`).
-   - Filenames match the ID (`<id>.yml`).
-5. **Line-oriented, diff-friendly text.** One field per line. Multi-line text uses literal block scalars (`|-`). No minified or single-line JSON blobs.
-6. **Append-only comments.** New comments go below the marker `# <!-- append below -->`. Never rewrite or reorder existing comment entries. Agents use author prefix `agent:<name>`.
-7. **Explicit lexicographic `rank` fields for ordering.** Use string rank (`0|aaaaaa`) rather than floating-point math or filename sorting. Never rename files to reorder.
-8. **The index is never authoritative.** Writes go to files first, never directly to SQLite. Deleting `.plainpm/` must lose no data.
-9. **Never commit the index cache or secrets.** `.plainpm/` and `.env*` stay gitignored.
-10. **Every file carries `schema_version`** (or inherits it from `plainpm.yml` via ancestor directory traversal). Format changes ship with a `plainpm migrate` command, never silent dual-format support.
-11. **Preserve unknown fields and comments** when rewriting a file. Round-tripping must not destroy user content, unknown v2 fields, or reorder keys.
-12. **Agent-ready by default.** Issues should provide structured context (`implementation_notes`, `test_strategy`, `acceptance_criteria` with `verify` commands, and `agent_context`) so coding agents can execute without cold-start discovery.
+1. **One entity per file.** Issues, PRDs, and handoffs use Markdown with YAML frontmatter. Prose stays in the body; structured metadata and acceptance criteria stay in frontmatter.
+2. **Random identity plus sequential issue aliases.** Immutable IDs use `<project-key>-<random-token>` for issues, `PRD-<random-token>` for PRDs, and `HANDOFF-<random-token>` for handoffs. Tokens are eight cryptographically random characters from `23456789abcdefghjkmnpqrstuvwxyz` and include at least one letter. Each issue also requires `short_id: <project-key>-<positive-integer>` (e.g. `ACME-1`). Allocate numbers across all PRDs/backlog under the workspace lock using committed `sequences.next_issue_number`; reserve before issue creation, allow gaps, and never decrease/reuse numbers. Cross-branch alias duplicates require explicit repair; only the alias changes. Resolve counters using the greatest integrated high-water mark. Reject ambiguous short-ID lookup. Stored references and filenames always use random IDs. Check collisions and inject randomness in tests. See spec §3.1 for allocation and recovery.
+3. **Moves preserve identity.** Preserve both `id` and `short_id` when moving the issue file and updating `parent.prd`. Backlog uses `parent: null`. Resolve PRDs by their top-level `id`, then verify physical placement. Issue and handoff filenames equal `<id>.md`; PRDs use `prd.md`.
+4. **One dependency source.** Store only `links.blocked_by`; derive reverse links and execution plans. `links.blocks` and PRD `execution_order` are forbidden. Reject unresolved links, self-links, and cycles across the whole workspace. Only `done` satisfies a blocker.
+5. **Explicit ordering.** V1 ranks are six lowercase ASCII letters, interpreted as base-26 integers; sort by `(rank, id)`. Rebalance explicitly when no midpoint remains. Never rename files to reorder or silently rewrite sibling ranks.
+6. **Append-only comments.** Use the Markdown comment block syntax in spec §7, with stable random comment IDs. Preserve existing bytes. Concurrent appends can conflict; retain distinct entries and surface conflicting content under one ID. V1 tooling never edits/deletes existing entries.
+7. **Lossless edits.** Preserve unknown extension fields, YAML comments/key order, Markdown, and line endings. An unchanged parse/serialize must be byte-identical. Reject duplicate YAML keys, aliases, merge keys, and custom tags. Avoid formatting unrelated content.
+8. **Files first.** The index is never authoritative. Deleting caches loses no project data or persisted ownership. Active transient locks must not be removed during cache cleanup.
+9. **Explicit versions.** Inherit `schema_version` only within the nearest workspace boundary. Do not write unsupported versions. Migration is explicit and reviewable, with no automatic commit.
+10. **External issue mappings.** Optional `external_links` entries require `provider`, string `external_id`, and an absolute HTTPS issue `url`. Validate shapes and reject duplicate exact `(provider, url)` mappings across the workspace without network access. IDs may be scoped by repository; never match on `external_id` alone. Preserve mappings on moves and short-ID repair. Links do not trigger sync or remote deletion; future sync must define direction and conflicts and write imported changes to validated local files. Never store provider credentials in issue files.
+11. **Agent-ready, without duplicated prose.** Require acceptance criteria with verification instructions and non-empty implementation/test sections before readiness. Verify commands are untrusted data; parsing, indexing, and validation never execute them.
 
-## Agent lifecycle & statuses
+## Agent lifecycle and ownership
 
-PlainPM workflows provide dedicated states to coordinate human and AI agent collaboration safely:
-
-```
+```text
 todo → ready_for_agent → agent_in_progress → agent_review → done
-                │                 │                │
-                ▼                 ▼                ▼
-            cancelled      ready_for_agent    agent_in_progress
-              (bail)        (agent release)     (rework needed)
+                              ↓                  ↓
+                       ready_for_agent    agent_in_progress
 ```
 
-- `ready_for_agent`: Issue is fully specified, blockers resolved, ready for autonomous execution.
-- `agent_in_progress`: Claimed by an agent (`assignee: agent:<name>`). Other agents must not claim or modify.
-- `agent_review`: Agent completed work and all acceptance criteria pass; waiting for human verification.
-- Branches created by agents follow `<type>/<issue-id>-<slug>` (e.g. `feat/PRD-1-001-registration-form`).
+- Claim by atomically persisting status, agent assignee, branch, and `claim.session_id`/`claim.claimed_at` while holding the workspace writer lock. Reread state under the lock; reject a stale, claimed, or blocked issue.
+- All cooperating CLI writers honor the same lock and expected-content checks. This coordinates one checkout, not independent clones/worktrees or arbitrary editors.
+- While an issue is claimed, only the owning session may perform ordinary edits. Humans may explicitly release/take over. Never infer release from elapsed time or a handoff document.
+- Crashed sessions retain ownership in the issue. Stale-lock recovery must prove the lock owner is no longer running or require explicit operator recovery.
+- Independent checkouts require preassigned work or external coordination. Git/status fields do not provide distributed exclusivity.
+- `agent_review` requires all criteria complete and human verification of manual criteria. Clear the active claim on leaving `agent_in_progress`. Only an explicitly human-initiated CLI action marks reviewed work `done`; names in files are not authentication.
+- Rework creates a fresh claim with the same locking and blocker checks. Handoffs are historical context, not ownership records.
+- Use `agent:<name>` for agent identity and `<type>/<issue-id>-<slug>` for branches (`feat`, `fix`, `spike`).
+- Update Markdown agent context and create a handoff when unfinished work or unresolved decisions need continuation; otherwise it is optional. Require handoff `status: active | resolved`. Resolve or reopen explicitly with a reason and actor recorded in the body; refresh `updated_at` and navigation while preserving the originating session, author, historical lists, and associations. Status-only edits do not rederive PRDs, complete issues, or release claims. Keep one handoff per session per workspace in workspace-level `handoffs/` (or its configured path), never inside a PRD or in the OS temporary directory. Handoffs may span PRDs and backlog issues; use `context.prds` for optional PRD references and reject duplicate handoff session IDs. On explicit handoff creation or continuation-content save, union the current parent PRDs of resolvable referenced issues with explicitly selected planning PRDs and previous associations. Preserve historical associations across issue moves; only explicit corrections remove them. Missing historical references warn without being discarded. Reads, indexing, and navigation refresh never recompute associations. A resumed session updates its existing handoff in place, preserving ID, session ID, and creation time and refreshing required `updated_at`. A new session gets a new handoff. Only committed earlier summaries are preserved by Git.
 
-## Validation pipeline (order matters, fail fast)
+PRDs expose clickable relative handoff links in a derived `## Handoffs` section bounded by `plainpm:handoffs:start`/`plainpm:handoffs:end` HTML comments. Resolve the relationship from handoff `context.prds`; never maintain a second authoritative relationship in PRD frontmatter. List all related handoffs by updated timestamp descending, breaking ties by ID ascending, and include the UTC updated date, active/resolved status, and ID in each label. Keep both statuses visible. Explicitly refresh links after association/path or updated-time changes, preserving authored prose; reads and indexing must not rewrite files. See spec §5.1.1.
 
-1. Schema validation (required fields, types against JSON Schema draft 2020-12)
-2. Enum & workflow validation (legal `status`, legal transitions in `config/workflow.yml`)
-3. Referential integrity:
-   - Every `links.*` target resolves to an existing issue `id`.
-   - `parent.prd` resolves to an existing PRD folder with `prd.md`.
-   - `execution_order` in `prd.md` references valid issue `id`s.
-4. Uniqueness (no duplicate IDs anywhere across the workspace)
-5. Filename-to-ID parity (`<id>.yml` matches internal `id` key)
+## Validation pipeline
 
-Any change to the format must update `schemas/`, the validator, `docs/format-spec.md`, and `examples/basic-workspace/` together.
+Follow spec §9; fail later stages when earlier errors make their inputs unreliable:
 
-## Commands
+1. Scoped discovery, parsing, conflict-marker detection, version resolution.
+2. JSON Schema validation of frontmatter/config, plus Markdown/comment structure validation.
+3. Random ID shape/uniqueness, issue short-ID shape/uniqueness, sequence-counter consistency, and filename parity.
+4. Configuration/workflow references, parent resolution and placement, labels (unknown labels warn).
+5. Reference resolution and dependency cycles. Missing historical handoff targets warn.
+6. Readiness, claim, review, and completion invariants.
+
+Snapshot validation cannot prove previous transitions or authorship. CLI mutations compare old/new state and enforce transition guards. Baseline validation is a future feature and cannot reconstruct intermediate edits.
+
+Diagnostics include file path, line when available, offending ID, and a fix hint. Do not silently swallow invalid files or present their stale index rows as current data.
+
+Once format implementation exists, changes must update schemas, validator, spec, and examples together. During this pre-implementation draft stage, keep the spec, this guidance, and examples synchronized and explicitly identify missing implementation. Do not add runtime features solely to make a documentation change appear implemented.
+
+## Commands and checks
+
+Current repository commands:
 
 ```bash
-pnpm install          # install dependencies
-pnpm build            # build all packages
-pnpm test             # run all tests
-pnpm test --filter core
-pnpm lint             # eslint + prettier check
-pnpm typecheck        # tsc --noEmit
-
-plainpm init          # scaffold a workspace
-plainpm validate      # run the validation pipeline
-plainpm index         # rebuild the local SQLite index
-plainpm list --status=ready_for_agent
-plainpm show PRD-1-002
-plainpm migrate       # apply schema migrations
-plainpm rebalance     # recalculate evenly spaced lexicographic ranks
+npm install
+npm run build
+npm test
+npm run lint
+npm run typecheck
 ```
 
-## Coding conventions
+Planned format commands: `plainpm init`, `create`, `show`, `list`, `validate`, `move`, `plan`, `migrate`, `rebalance`, and optional `index`. Define their CLI contracts during implementation. Provide human-readable output by default and `--json` for machine-readable results.
 
-- TypeScript `strict` mode. No `any` without a comment explaining why.
-- Pure functions in `core` and `validator`. Filesystem access is isolated to thin adapters so logic is testable with in-memory inputs.
-- Use a YAML library that preserves comments and key order for any write path.
-- Errors from the validator must include file path, line (when available), the offending `id`, and a clear fix hint.
-- CLI output: human-readable by default, `--json` for machine-readable output on every command.
-- Keep dependencies minimal. Justify any new dependency in the PR description.
+## Coding and testing
 
-## Testing expectations
+- TypeScript strict mode. No `any` without a reason in a comment.
+- Pure parsing and validation logic; isolate filesystem access in adapters.
+- Test every validator rule with passing and failing fixtures.
+- Test byte-identical round trips and targeted edits preserving unrelated content.
+- Test concurrent local claims, independent random ID allocation, sequential short IDs, duplicate alias repair, ambiguous lookup, counter gaps/recovery, stable references after moves, and cycle detection.
+- Test that competing comment appends may conflict and that resolution retains both entries. Never assert Git guarantees clean merges.
+- Test index rebuild equivalence when indexing exists.
+- Inject clocks and ID generators. Tests must be deterministic.
 
-- Every validator rule needs a passing case and a failing case in `examples/` fixtures.
-- Round-trip tests: parse then serialize must produce a byte-identical file when nothing changed.
-- Concurrency tests: simulate two branches editing different fields of one issue, and appending comments to one issue, and assert clean merges.
-- Index tests: build from fixtures, delete, rebuild, and assert identical results.
-- Never write tests that depend on the real clock or random IDs. Inject them.
+## Git and migrations
 
-## Git and PR conventions
+Use Conventional Commits and focused PRs. Released schema changes include an explicit migration and a `schema-change` label; separate migrations rewriting user files from feature work. Produce reviewable diffs, not automatic user commits.
 
-- Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
-- Schema changes and their migration script land in the same PR, labeled `schema-change`.
-- Migration PRs that rewrite user files must be separate from feature PRs so the diff is reviewable.
-- Keep PRs focused; one concern per PR.
+The earlier YAML-issue draft also used `plainpm/v1`; a future importer must explicitly name that source draft and convert IDs/references together and assign short IDs with a valid sequence counter. The UUID-only Markdown draft also needs an explicit conversion, not silent compatibility. Historical repository plans are not implicitly migrated by discovery.
 
-## Things agents should NOT do
+Configuration symlinks may point to shared standards; resolve before reading and never mutate their targets through unrelated entity operations. Entities must not be symlinks.
 
-- Do not add a database, server, or hosted dependency as a source of truth.
-- Do not auto-reformat or reorder users' workspace files as a side effect of unrelated commands.
-- Do not delete or renumber IDs, and do not reuse an ID after deletion.
-- Do not commit `.plainpm/`, `.env*`, or generated build output.
-- Do not introduce a second supported file format without an explicit design decision recorded in `docs/`.
-- Do not claim an issue already in `agent_in_progress`.
-- Do not silently swallow validation errors; surface them.
+Do not commit caches, secrets, or generated build output. Never delete or renumber existing entity IDs during ordinary operations. License is MIT; use DCO sign-off (`git commit -s`) when committing.
 
-## Symlinks
-
-Shared config (for example `config/workflow.yml`) may be a symlink to a central standards location. The validator must resolve symlinks before parsing and must not assume plain files. Do not use symlinks to place one issue in two PRDs; use `links.relates_to` instead.
-
-## When in doubt
-
-Prefer the option that keeps files human-editable, diffs small, and merges clean. If a change would make that harder, propose it in `docs/` before implementing.
-
-## License
-
-MIT (or Apache-2.0; confirm in `LICENSE`). Contributions require DCO sign-off (`git commit -s`).
+When in doubt, favor human-editable Markdown, small diffs, stable references, and explicit conflict reporting.

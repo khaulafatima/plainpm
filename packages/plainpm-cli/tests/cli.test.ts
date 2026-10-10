@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { createCli } from '../src/packages/plainpm-cli/index.js'
+import { createCli } from '../src/cli.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -8,7 +8,7 @@ describe('yargs CLI command runner', () => {
   it('displays help output containing usage information via programmatic runner', async () => {
     const cli = createCli()
     const output = await new Promise<string>((resolve) => {
-      cli.parse('--help', (_err: Error | undefined, _argv: any, output: string) => {
+      cli.parse('--help', (_err: Error | undefined, _argv: unknown, output: string) => {
         resolve(output)
       })
     })

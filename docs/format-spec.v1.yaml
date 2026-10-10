@@ -1,0 +1,417 @@
+# Structured companion to format-spec.md; not an executable JSON Schema.
+format: plainpm/v1
+status: draft
+authoritative_document: format-spec.md
+implementation_status: CLI scaffold only; parser, schemas, validator, and sync are pending.
+notation:
+  required: Required mapping keys; dotted names denote nested fields.
+  optional: Optional mapping keys; omitted values do not imply defaults unless specified.
+  field_types: Descriptive type notation, not JSON Schema keywords.
+  extensions: Unknown fields are allowed and preserved unless explicitly forbidden.
+
+principles:
+  source_of_truth: workspace files
+  entity_storage: one Markdown file with YAML frontmatter per entity
+  configuration_storage: YAML
+  writes: files first
+  round_trip: Preserve bytes when unchanged; preserve unrelated content on targeted edits.
+  preserved_content: [unknown_fields, YAML_comments, key_order, Markdown, line_endings]
+
+workspace:
+  manifest: plainpm.yml
+  root_resolution: nearest ancestor manifest
+  version_inheritance: bounded by nearest workspace manifest
+  nested_workspaces: excluded from parent discovery
+  default_paths:
+    config: config
+    prds: prds
+    backlog: backlog
+    handoffs: handoffs
+  discovery:
+    - plainpm.yml
+    - <paths.config>/workflow.yml
+    - <paths.config>/labels.yml
+    - <paths.prds>/*/prd.md
+    - <paths.prds>/*/issues/*.md
+    - <paths.backlog>/issues/*.md
+    - <paths.handoffs>/*.md
+  excluded: [ordinary_repository_documents, attachments, historical_plans]
+  paths: Relative, distinct, non-overlapping directories within the workspace.
+  symlinks:
+    configuration: Resolve before reading; do not rewrite through unrelated entity edits.
+    entities_and_entity_directories: forbidden
+  orphan_issue_directories: error when the containing PRD lacks prd.md
+  gitignore: ['.plainpm/', '.env*']
+  epics: outside_v1
+
+syntax:
+  frontmatter: YAML mapping between standalone '---' delimiters, starting on line one.
+  reject: [duplicate_YAML_keys, aliases, merge_keys, custom_tags, unresolved_Git_conflicts]
+  timestamps: Quoted RFC 3339 UTC strings ending in Z.
+  dates: Quoted YYYY-MM-DD strings.
+  schema_version: Required on manifest; other managed files may inherit plainpm/v1.
+
+identity:
+  random_token:
+    length: 8
+    alphabet: '23456789abcdefghjkmnpqrstuvwxyz'
+    requires_letter: true
+    generator: cryptographically_secure
+  project_key:
+    pattern: '^[A-Z][A-Z0-9]*$'
+    reserved: [PRD, HANDOFF, COMMENT]
+    mutable: false
+  patterns:
+    issue: <project-key>-<random-token>
+    prd: PRD-<random-token>
+    handoff: HANDOFF-<random-token>
+    comment: COMMENT-<random-token>
+  references: full immutable random IDs
+  filenames:
+    issue: <id>.md
+    prd: prd.md
+    handoff: <id>.md
+  allocation: Check uniqueness, retry random collisions, and create files exclusively.
+  deleted_ids: never_reuse
+  short_id:
+    applies_to: issue
+    format: <project-key>-<positive-integer>
+    leading_zeros: forbidden
+    scope: all workspace issues across PRDs and backlog
+    counter: sequences.next_issue_number
+    initial_counter: 1
+    allocation: Reserve and increment under workspace lock before exclusive issue creation.
+    failure: Leave a gap if issue creation fails after counter reservation.
+    reuse_or_decrease: forbidden
+    ambiguous_lookup: error with matching random IDs
+    branch_conflicts: Explicitly reassign duplicate aliases; retain random IDs and references.
+    counter_merge: Keep greatest integrated counter and advance above all allocated numbers.
+    lost_counter_history: Explicit recovery from Git; surviving issues alone are insufficient.
+    durable_external_references: Use random IDs because aliases may change during repair.
+  moves:
+    preserve: [id, short_id, filename, external_links]
+    update: parent.prd and physical location together
+    partial_failure: Report and support recovery; not an atomic multi-file transaction.
+
+entities:
+  project:
+    kind: project
+    storage: YAML
+    required: [schema_version, kind, info, settings, sequences, paths]
+    nested_required:
+      info: [name, key]
+      settings: [default_issue_type, default_priority, default_status]
+      sequences: [next_issue_number]
+      paths: [config, prds, backlog, handoffs]
+    optional: [info.description]
+    field_types:
+      info.name: non-empty string
+      info.key: project key
+      info.description: string
+      settings.default_issue_type: issue type enum
+      settings.default_priority: priority enum
+      settings.default_status: configured workflow status ID
+      sequences.next_issue_number: positive integer greater than every existing issue number
+      paths: mapping of relative directory strings
+    defaults: Applied and persisted only at entity creation.
+  workflow:
+    kind: workflow
+    storage: YAML
+    required: [kind, statuses, transitions, initial_status, terminal_statuses]
+    status_required: [id, name, category]
+    status_optional: [color, description]
+    status_categories: [unstarted, active, completed, discarded]
+    color_pattern: '^#[0-9A-Fa-f]{6}$'
+    field_types:
+      statuses: array of status objects with unique string IDs
+      transitions: mapping from status IDs to arrays of status IDs
+      initial_status: status ID
+      terminal_statuses: array of status IDs
+    rules:
+      - All transition keys/targets, initial/terminal statuses, and manifest default status resolve.
+      - Every status has a transition entry; an empty array forbids outgoing transitions.
+      - Terminal classification does not forbid reopening.
+      - Agent lifecycle statuses are required; custom transitions cannot bypass guards.
+  labels:
+    kind: labels
+    storage: YAML
+    required: [kind, labels]
+    item_required: [id, name]
+    item_optional: [color, description]
+    field_types:
+      labels: array of label objects with unique string IDs and string names
+      color: '#RRGGBB'
+      description: string
+    unknown_issue_labels: warning
+  prd:
+    kind: prd
+    storage: Markdown_with_YAML_frontmatter
+    required: [kind, id, title, status]
+    optional: [owner, target_release]
+    field_types:
+      id: PRD random ID
+      title: non-empty string
+      status: PRD status enum
+      owner: string
+      target_release: string
+    statuses: [draft, active, completed, cancelled]
+    forbidden: [execution_order]
+    body: non-empty Markdown
+    title_authority: frontmatter; do not rewrite body headings during unrelated edits
+    handoff_navigation:
+      heading: Handoffs
+      source: Handoffs whose context.prds contains this PRD ID.
+      representation: persisted derived relative Markdown links for GitHub browsing
+      markers: ['<!-- plainpm:handoffs:start -->', '<!-- plainpm:handoffs:end -->']
+      refresh: Explicitly after association or path changes; preserve authored prose.
+      validation: Warn about stale, broken, or mismatched navigation without changing associations.
+      cross_file_failures: Report and allow retry; not atomic.
+      coverage: all related active and resolved handoffs, without truncation
+      ordering: updated_at instant descending, then handoff ID ascending in ASCII order
+      label: UTC updated date (YYYY-MM-DD), active/resolved status, and handoff ID; descriptive title optional
+      timestamp_changes: Refresh ordering and labels when status or updated_at changes.
+      empty_result: Keep the bounded section empty.
+      implementation: planned
+  issue:
+    kind: issue
+    storage: Markdown_with_YAML_frontmatter
+    required: [kind, id, short_id, title, status, type, priority, rank, parent, dates, links, acceptance_criteria]
+    optional: [assignee, reporter, labels, branch, claim, external_links]
+    field_types:
+      id: issue random ID
+      short_id: sequential issue alias
+      title: non-empty string
+      status: configured workflow status ID
+      assignee: string or null
+      reporter: string
+      labels: array of unique strings
+      branch: string
+      rank: six lowercase ASCII letters
+      parent: null for backlog; otherwise mapping with required PRD ID field prd
+      dates: mapping with required created_at/updated_at timestamps and optional due_date
+      links: mapping with required blocked_by/relates_to arrays of unique issue IDs
+      acceptance_criteria: array of criterion objects; may be empty before readiness
+    types: [task, bug, feature, spike]
+    priorities: [urgent, high, medium, low]
+    forbidden: [links.blocks]
+    acceptance_criterion:
+      required: [id, text, done]
+      optional: [verify]
+      field_types:
+        id: stable issue-local unique string
+        text: non-empty string
+        done: boolean assertion, not proof
+        verify: non-empty shell command string or literal manual
+    claim:
+      required: [session_id, claimed_at]
+      field_types:
+        session_id: non-empty string
+        claimed_at: UTC timestamp
+    prose_sections: [Description, Implementation notes, Test strategy, Agent context]
+    comments: Reserved final section; see comments contract below.
+  handoff:
+    kind: handoff
+    storage: Markdown_with_YAML_frontmatter
+    directory: <paths.handoffs>
+    scope: one per session per workspace, spanning multiple PRDs and backlog issues
+    required: [kind, id, status, created_at, updated_at, author, session_id, context]
+    optional: [suggested_skills]
+    field_types:
+      id: handoff random ID
+      status: active or resolved, independent of issue workflow
+      created_at: UTC timestamp
+      updated_at: UTC timestamp, not earlier than created_at
+      author: string
+      session_id: non-empty string, unique among workspace handoffs
+      suggested_skills: array of strings
+    context:
+      required: [issues_completed, issues_in_progress, issues_remaining]
+      optional: [branch, prds]
+      field_types:
+        issues_completed: array of unique issue IDs
+        issues_in_progress: array of unique issue IDs
+        issues_remaining: array of unique issue IDs
+        branch: string
+        prds: array of unique PRD IDs; omitted or empty for backlog-only work
+      issue_lists: mutually_disjoint
+      forbidden: [prd]
+    prd_association:
+      trigger: explicit handoff creation or continuation-content update only
+      derive_from: Non-null parent.prd of resolvable issues in all three issue lists.
+      union_with: Explicitly selected planning PRDs and previously recorded PRDs.
+      ordering: Preserve existing order; append new unique IDs in ascending ASCII order.
+      empty_result: Writers emit prds as an empty array; readers also accept omission.
+      later_issue_moves: Preserve prior associations; a later handoff save may add the new parent.
+      automatic_recomputation: Forbidden during reads, indexing, navigation refresh, and issue moves.
+      removal: Explicit correction only; cannot omit current parent of an issue still referenced.
+      unresolved_references: Warn and retain references and associations; never guess former parents.
+      snapshot_validation: Do not require historical associations to equal current issue parents.
+      navigation: Refresh links from saved associations after handoff save.
+    status_policy:
+      values: [active, resolved]
+      active: Continuation notes still require attention.
+      resolved: Notes addressed or explicitly dismissed with a recorded reason.
+      creation: Required for unfinished work or unresolved decisions; otherwise optional.
+      initial: active for pending work; resolved allowed for completed-work documentation
+      resolve: Explicit human or agent review across all covered PRDs; record reason and actor in body.
+      reopen: Explicitly set active and record reason and acting person or agent in body.
+      preserve: Originating session ID, author, historical issue lists, and PRD associations.
+      refresh: updated_at and PRD navigation using writer lock and expected-content checks
+      status_only_save: Do not recompute associations from current issue parents.
+      automatic_resolution: forbidden
+      issue_effects: None; does not complete issues or release claims.
+    lifecycle:
+      create: Set updated_at equal to created_at.
+      same_session: Update existing summary in place under writer lock and expected-content check.
+      preserve: [id, session_id, author, created_at, filename]
+      refresh: updated_at and current continuation summary
+      new_session: Create a new handoff even if continuing the same issues.
+      history: Git preserves committed earlier summaries only.
+    body: Non-empty Markdown covering accomplishments, remaining work, decisions, and known issues.
+    operations:
+      boundary: existing CLI; pure parsing/validation behind thin filesystem adapters
+      capabilities: [create, update_same_session, resolve, reopen, discover_by_PRD, refresh_navigation]
+      command_syntax: pending_design
+      index_required: false
+      write_order: Save authoritative handoff before refreshing affected PRD navigation.
+      partial_failure: Report saved handoff and incomplete PRD updates.
+      retry: Reuse persisted identity and rebuild links without duplicate entities or entries.
+      association_correction: Refresh both previously associated and newly associated PRDs.
+      automatic_retention_pruning: forbidden
+      creation_requirement: Agent workflow rule; snapshot validation cannot observe every session ending.
+      skill_alignment: Update hand-off authoring skill to workspace storage during implementation.
+      historical_document_migration: explicit_only
+      open_questions: [portable_session_ID_sourcing, session_history_versus_minimal_continuation_guide]
+    missing_historical_references: warning
+    authority: Does not change issue status or transfer claims.
+
+external_links:
+  applies_to: issue
+  type: optional array; omission or empty array means no mapping
+  item_required: [provider, external_id, url]
+  field_types:
+    provider: lowercase string matching ^[a-z][a-z0-9_-]*$
+    external_id: non-empty string; numeric values must be quoted
+    url: absolute HTTPS issue URL including host and repository/project scope
+  uniqueness: Exact (provider, url) pair across all workspace issues.
+  credentials: forbidden in committed mappings
+  scope: external_id alone is not globally unique
+  local_validation: field shapes and exact duplicate mappings; no network requests
+  adapter_validation: Resolve provider scope and verify URL/ID agreement and URL aliases before sync.
+  unlink: Remove local mapping only; never delete remote issue implicitly.
+  synchronization: Not implemented; links alone trigger no remote operations.
+  future_sync: Define direction, field mapping, and conflicts; import through validated local files.
+
+ordering:
+  rank_pattern: '^[a-z]{6}$'
+  scope: containing PRD or backlog
+  comparison: ASCII rank, then random ID
+  allocation: Integer midpoint in fixed-width base 26; a=0 through z=25.
+  virtual_boundaries: [-1, 308915776]
+  dense_positions: require explicit rebalance
+  equal_ranks: allowed; ID breaks ties
+  rebalance: Even distribution in current order; reject scopes exceeding rank space.
+
+dependencies:
+  stored_direction: links.blocked_by
+  derived: [reverse_blocks, execution_plan]
+  errors: [missing_live_targets, self_links, dependency_cycles_including_cross_PRD_cycles]
+  satisfied_status: done
+  cancelled_blocker: does not satisfy dependency
+  relates_to: Non-scheduling link; reciprocal edits not required.
+  planning: Topological order; break available-node ties with (rank, id); show external blockers.
+
+comments:
+  section: Comments
+  marker: '<!-- plainpm:comments -->'
+  entry_start: '<!-- plainpm:comment <comment-id> -->'
+  entry_metadata_lines: ['Author: <single-line-author>', 'Created-at: <UTC-timestamp>']
+  entry_end: '<!-- plainpm:end-comment -->'
+  body: Non-empty Markdown between blank line after metadata and end marker.
+  rules:
+    - Exactly one standalone section marker outside fenced code; log is final content.
+    - Reserved marker lines may not appear literally inside comment bodies.
+    - Empty log is allowed; reject malformed entries, duplicate IDs, and unrelated trailing content.
+    - Append at EOF and preserve existing bytes; corrections are new comments.
+    - Conflicting appends require explicit resolution preserving distinct entries and branch-local order.
+    - Different content under the same ID requires explicit resolution.
+  history: append_only
+  authenticated_audit_trail: false
+
+agents:
+  identity: agent:<name>
+  branches: <type>/<issue-id>-<slug>
+  branch_types: [feat, fix, spike]
+  readiness:
+    statuses: [ready_for_agent, agent_in_progress]
+    requirements:
+      - Non-empty acceptance criteria, each with verify, including manual where applicable.
+      - All blockers done.
+      - Non-empty Implementation notes and Test strategy sections, with case-sensitive headings.
+  ownership:
+    coordination: exclusive workspace writer lock for cooperating CLI writers in one checkout
+    writes: Reread, validate expected content, and atomically replace using same-directory temp file.
+    claim: Persist agent_in_progress, agent assignee, branch, and claim together.
+    claim_sources: [ready_for_agent, agent_review]
+    active_claim: Only agent_in_progress carries claim; ordinary edits require matching session.
+    release: Explicit human action; clear claim/assignee and return to ready_for_agent if ready.
+    leaving_active_status: Clear claim; retain assignee/branch for review attribution.
+    recovery: Prove stale lock owner is no longer running or require explicit operator recovery.
+    timeout_release: forbidden
+    independent_checkouts: require external coordination or preassigned work
+    handoff_transfer: forbidden
+  review:
+    enter: All acceptance criteria complete; manual criteria need recorded human verification.
+    complete: Only explicitly human-initiated CLI action transitions agent_review to done.
+    direct_edits: May bypass actor policy; author strings are not authentication.
+  verify_execution: Never during parsing, indexing, or validation; require user authorization for execution.
+
+validation:
+  stages: [discovery_and_parsing, schema_and_body, identity, configuration_and_structure, graph, state_invariants]
+  fail_fast: Stop dependent stages when earlier inputs are unreliable.
+  diagnostics: [file_path, line_when_available, entity_id, fix_hint]
+  warnings: do_not_fail_by_default
+  snapshot_limits: Cannot prove earlier transitions, intermediate edits, or actor identity.
+  mutation_checks: Compare old/new state and enforce workflow/actor guards.
+  done_invariant: All recorded acceptance criteria complete.
+  planned_schema_dialect: JSON Schema draft 2020-12
+  planned_schemas: [project.json, workflow.json, labels.json, prd.json, issue.json, handoff.json]
+
+migration:
+  unsupported_versions: never_write
+  explicit: true
+  dry_run: required
+  historical_drafts: Require named source draft; no silent dual-format support.
+  preserve: user content and references; reject ambiguous mappings
+  steps: named, idempotent, reviewable, with partial-failure recovery
+  auto_commit: false
+
+index:
+  path: .plainpm/index.sqlite
+  authoritative: false
+  rebuildable: true
+  freshness: Detect changed files or scan; do not rely on watcher timing.
+  invalid_files: Surface diagnostics; never present stale rows as current data.
+  active_locks: Never remove during cleanup or rebuild.
+
+handoff_testing:
+  status: confirmed_requirements_not_implemented_tests
+  primary_boundary: CLI operations against isolated temporary workspaces
+  assertions: resulting files, diagnostics, and navigable PRD links
+  prior_art: existing programmatic CLI runner and child-process tests
+  determinism: injected clocks and random-ID generators
+  scenarios:
+    - Multi-PRD, backlog-only, and planning-only creation.
+    - Required fields, status enum, unique sessions, disjoint issue lists, and timestamp validation.
+    - Same-session update preserves identity and origin; new session creates a new handoff.
+    - Parent inclusion, explicit planning context, and historical association preservation.
+    - Status-only updates preserve associations; resolve/reopen record actor and reason.
+    - All statuses visible with correct labels, timestamp ordering, and ID tie-breaking.
+    - Relative links resolve under configured directories and after moves.
+    - Empty navigation, stale-link warnings, and explicit refresh preserve authored prose.
+    - Partial refresh failure is recoverable without duplicate entities or links.
+    - Missing historical references warn and remain stored.
+    - Competing local writes fail safely rather than lose edits.
+    - No-op round trips preserve bytes; targeted edits preserve unrelated content.
+    - Handoff operations leave issue statuses and claims unchanged.
+    - Validation performs no cloud requests or verification-command execution.

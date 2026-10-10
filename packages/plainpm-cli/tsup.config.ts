@@ -2,12 +2,11 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    cli: 'src/packages/plainpm-cli/cli.ts',
-    index: 'src/index.ts',
+    cli: 'src/index.ts',
   },
   format: ['esm'],
   target: 'node18',
-  dts: true,
+  dts: false,
   clean: true,
   sourcemap: true,
   shims: true,

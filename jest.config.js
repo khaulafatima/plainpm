@@ -14,6 +14,4 @@ export default {
       },
     ],
   },
-  modulePathIgnorePatterns: ['<rootDir>/bruno/'],
-  testMatch: ['<rootDir>/tests/**/*.test.ts'],
 }
